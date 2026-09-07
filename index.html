@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101917">
+  <title>NetzWache</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">NW</span><div><p class="eyebrow">LOKALER MONITOR</p><h1>NetzWache</h1></div></div>
+    <div class="run-state"><span id="run-indicator" class="indicator idle"></span><span id="run-state">Bereit</span></div>
+  </header>
+
+  <main class="app-shell">
+    <aside class="sidebar">
+      <div class="section-heading"><h2>Ziele</h2><span id="monitor-count" class="count">0</span></div>
+      <form id="monitor-form" class="target-form">
+        <label>Name<input id="monitor-name" maxlength="60" placeholder="Zum Beispiel Kundenportal" required></label>
+        <label>URL<input id="monitor-url" type="url" placeholder="https://example.com/health" required></label>
+        <label>Prüfintervall<select id="monitor-interval"><option value="0">Nur manuell</option><option value="60">1 Minute</option><option value="300" selected>5 Minuten</option><option value="900">15 Minuten</option></select></label>
+        <button type="submit">Ziel hinzufügen</button>
+      </form>
+      <p class="browser-note">Webseiten müssen CORS-Anfragen erlauben. Andernfalls zeigt der Browser die Prüfung als nicht erreichbar an.</p>
+      <div id="monitor-list" class="monitor-list" aria-live="polite"></div>
+    </aside>
+
+    <section class="workspace" aria-label="Monitorübersicht">
+      <div id="empty-state" class="empty-state">
+        <span class="empty-icon" aria-hidden="true">+</span>
+        <h2>Erstes Ziel anlegen</h2>
+        <p>Füge links eine URL hinzu. NetzWache misst Status und Antwortzeit und speichert den Verlauf nur in diesem Browser.</p>
+      </div>
+      <div id="dashboard" class="dashboard hidden">
+        <div class="dashboard-head">
+          <div><p id="selected-url" class="selected-url"></p><h2 id="selected-name"></h2></div>
+          <div class="dashboard-actions"><button id="check-now" class="primary" type="button">Jetzt prüfen</button><button id="delete-monitor" class="icon-button" type="button" title="Ziel löschen" aria-label="Ziel löschen">×</button></div>
+        </div>
+        <div class="metrics">
+          <article><span>Aktueller Status</span><strong id="metric-status">–</strong><small id="metric-status-detail">Noch keine Prüfung</small></article>
+          <article><span>Antwortzeit</span><strong id="metric-latency">–</strong><small id="metric-latency-detail">–</small></article>
+          <article><span>Verfügbarkeit</span><strong id="metric-availability">–</strong><small id="metric-availability-detail">Letzte 30 Prüfungen</small></article>
+        </div>
+        <section class="chart-panel"><div class="panel-head"><div><h3>Antwortzeitverlauf</h3><p>Letzte 30 Prüfungen in Millisekunden</p></div><div class="legend"><span><i class="ok-dot"></i>Erreichbar</span><span><i class="fail-dot"></i>Nicht erreichbar</span></div></div><canvas id="latency-chart" role="img" aria-label="Antwortzeitverlauf"></canvas></section>
+        <section class="history-panel"><div class="panel-head"><div><h3>Prüfprotokoll</h3><p>Neueste Prüfung zuerst</p></div><button id="clear-history" class="text-button" type="button">Verlauf löschen</button></div><div id="history-list" class="history-list"></div></section>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
