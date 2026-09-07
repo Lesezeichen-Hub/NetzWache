@@ -14,6 +14,6 @@ NetzWache verwendet die allgemeine Hub-API für HTTP-Monitore. Diese API kann au
 
 - Mehrere HTTP(S)-Ziele mit eigenen Prüfintervallen
 - Manuelle Prüfung mit 20 Sekunden Zeitlimit
-- Hub-gestützter Verlauf mit bis zu 200 Messungen je Ziel
+- Hub-gestützter Verlauf mit den jeweils neuesten 200 Messungen je Ziel
 - Status, Antwortzeit und Verfügbarkeit der letzten 30 Prüfungen
 - Canvas-Diagramm mit erfolgreichen Messungen und Fehler-Markierungen
