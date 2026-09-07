@@ -1,11 +1,46 @@
-const storageKey = "netzwache-monitors-v1";
-const state = { monitors: loadMonitors(), selectedId: null, running: new Set() };
+const moduleID = Number(location.pathname.match(/^\/modules\/(\d+)\//)?.[1]);
+const state = { monitors: [], selectedId: null, running: new Set() };
 const elements = {
   form: document.querySelector("#monitor-form"), name: document.querySelector("#monitor-name"), url: document.querySelector("#monitor-url"), interval: document.querySelector("#monitor-interval"), list: document.querySelector("#monitor-list"), count: document.querySelector("#monitor-count"), empty: document.querySelector("#empty-state"), dashboard: document.querySelector("#dashboard"), selectedName: document.querySelector("#selected-name"), selectedURL: document.querySelector("#selected-url"), check: document.querySelector("#check-now"), remove: document.querySelector("#delete-monitor"), status: document.querySelector("#metric-status"), statusDetail: document.querySelector("#metric-status-detail"), latency: document.querySelector("#metric-latency"), availability: document.querySelector("#metric-availability"), history: document.querySelector("#history-list"), clear: document.querySelector("#clear-history"), chart: document.querySelector("#latency-chart"), indicator: document.querySelector("#run-indicator"), runState: document.querySelector("#run-state")
 };
 
-function loadMonitors() { try { return JSON.parse(localStorage.getItem(storageKey)) || []; } catch { return []; } }
-function saveMonitors() { localStorage.setItem(storageKey, JSON.stringify(state.monitors)); }
+async function request(path, options) {
+  const response = await fetch(path, { cache: "no-store", ...options });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || `Hub-Fehler ${response.status}`);
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+function apiURL(path, parameters = {}) {
+  return `${path}?${new URLSearchParams({ module_id: moduleID, ...parameters })}`;
+}
+
+function toResult(result) {
+  return { at: result.checked_at, ok: result.ok, latency: result.latency_ms, message: result.message };
+}
+
+async function loadMonitors() {
+  if (!Number.isInteger(moduleID) || moduleID <= 0) {
+    elements.runState.textContent = "NetzWache muss als Hub-Modul geöffnet werden.";
+    elements.indicator.className = "indicator error";
+    return;
+  }
+  try {
+    const targets = await request(apiURL("/api/http-monitors"));
+    state.monitors = await Promise.all(targets.map(async (target) => ({
+      ...target,
+      history: (await request(apiURL("/api/http-monitor-results", { target_id: target.id }))).map(toResult),
+      lastCheck: target.last_checked_at ? new Date(target.last_checked_at).getTime() : 0
+    })));
+    if (!selectedMonitor()) state.selectedId = state.monitors[0]?.id || null;
+    render();
+  } catch (error) {
+    elements.runState.textContent = error.message;
+    elements.indicator.className = "indicator error";
+  }
+}
 function selectedMonitor() { return state.monitors.find((monitor) => monitor.id === state.selectedId); }
 function lastResult(monitor) { return monitor?.history.at(-1); }
 function formatTime(value) { return new Date(value).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "medium" }); }
@@ -29,14 +64,14 @@ function render() {
 async function checkMonitor(monitor) {
   if (state.running.has(monitor.id)) return;
   state.running.add(monitor.id); updateRunState();
-  const started = performance.now(); let result;
   try {
-    const response = await fetch(`/api/netzwache/check?${new URLSearchParams({ url: monitor.url })}`, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
-    if (!response.ok) throw new Error(`Hub-Fehler ${response.status}`);
-    const payload = await response.json();
-    result = { at: Date.now(), ok: Boolean(payload.ok), latency: Number(payload.latency) || null, message: payload.message || "Unbekannter Status" };
-  } catch (error) { result = { at: Date.now(), ok: false, latency: Math.round(performance.now() - started), message: error.name === "TimeoutError" ? "Zeitüberschreitung" : "Hub nicht erreichbar" }; }
-  monitor.history = [...monitor.history, result].slice(-200); monitor.lastCheck = result.at; saveMonitors(); state.running.delete(monitor.id); render();
+    const result = await request(apiURL(`/api/http-monitors/${monitor.id}/check`), { method: "POST" });
+    monitor.history = [...monitor.history, toResult(result)].slice(-200);
+    monitor.lastCheck = new Date(result.checked_at).getTime();
+  } catch (error) {
+    monitor.history = [...monitor.history, { at: Date.now(), ok: false, latency: null, message: error.message }].slice(-200);
+  }
+  state.running.delete(monitor.id); render();
 }
 
 function drawChart(history) {
@@ -52,14 +87,24 @@ function drawChart(history) {
   history.forEach((result, index) => { const x = pad.left + (history.length === 1 ? plotWidth / 2 : index * plotWidth / Math.max(1, history.length - 1)); if (!result.ok) { context.fillStyle = "#ff8178"; context.fillRect(x - 3, height - pad.bottom - 3, 6, 6); return; } const pointValue = point(result, index); context.fillStyle = "#52d6c1"; context.beginPath(); context.arc(pointValue.x, pointValue.y, 3, 0, Math.PI * 2); context.fill(); });
 }
 
-function updateRunState() { const running = state.running.size; elements.indicator.className = `indicator ${running ? "running" : state.monitors.length ? "idle" : "idle"}`; elements.runState.textContent = running ? `Prüfe ${running} Ziel${running === 1 ? "" : "e"}` : state.monitors.length ? "Überwachung aktiv" : "Bereit"; }
+function updateRunState() { const running = state.running.size; elements.indicator.className = `indicator ${running ? "running" : state.monitors.length ? "idle" : "idle"}`; elements.runState.textContent = running ? `Prüfe ${running} Ziel${running === 1 ? "" : "e"}` : state.monitors.length ? "Hintergrundüberwachung aktiv" : "Bereit"; }
 function escapeHTML(value) { const node = document.createElement("span"); node.textContent = value; return node.innerHTML; }
 
-elements.form.addEventListener("submit", (event) => { event.preventDefault(); const url = new URL(elements.url.value.trim()); if (!/^https?:$/.test(url.protocol)) return; const monitor = { id: crypto.randomUUID(), name: elements.name.value.trim(), url: url.href, interval: Number(elements.interval.value), history: [], lastCheck: 0 }; state.monitors.push(monitor); state.selectedId = monitor.id; saveMonitors(); elements.form.reset(); elements.interval.value = "300"; render(); checkMonitor(monitor); });
-elements.list.addEventListener("click", (event) => { const button = event.target.closest("[data-monitor-id]"); if (!button) return; state.selectedId = button.dataset.monitorId; render(); });
+elements.form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const url = new URL(elements.url.value.trim());
+    if (!/^https?:$/.test(url.protocol)) throw new Error("Nur HTTP(S)-Adressen sind erlaubt.");
+    const monitor = await request("/api/http-monitors", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ module_id: moduleID, name: elements.name.value.trim(), url: url.href, interval_seconds: Number(elements.interval.value) }) });
+    monitor.history = [];
+    state.monitors.push(monitor); state.selectedId = monitor.id;
+    elements.form.reset(); elements.interval.value = "300"; render(); checkMonitor(monitor);
+  } catch (error) { elements.runState.textContent = error.message; elements.indicator.className = "indicator error"; }
+});
+elements.list.addEventListener("click", (event) => { const button = event.target.closest("[data-monitor-id]"); if (!button) return; state.selectedId = Number(button.dataset.monitorId); render(); });
 elements.check.addEventListener("click", () => { const monitor = selectedMonitor(); if (monitor) checkMonitor(monitor); });
-elements.remove.addEventListener("click", () => { const monitor = selectedMonitor(); if (!monitor || !confirm(`„${monitor.name}“ wirklich löschen?`)) return; state.monitors = state.monitors.filter((item) => item.id !== monitor.id); state.selectedId = state.monitors[0]?.id || null; saveMonitors(); render(); });
-elements.clear.addEventListener("click", () => { const monitor = selectedMonitor(); if (!monitor) return; monitor.history = []; saveMonitors(); render(); });
+elements.remove.addEventListener("click", async () => { const monitor = selectedMonitor(); if (!monitor || !confirm(`„${monitor.name}“ wirklich löschen?`)) return; try { await request(apiURL(`/api/http-monitors/${monitor.id}`), { method: "DELETE" }); state.monitors = state.monitors.filter((item) => item.id !== monitor.id); state.selectedId = state.monitors[0]?.id || null; render(); } catch (error) { elements.runState.textContent = error.message; } });
+elements.clear.addEventListener("click", () => { elements.runState.textContent = "Messwerte werden vom Hub verwaltet und automatisch begrenzt."; });
 window.addEventListener("resize", () => { const monitor = selectedMonitor(); if (monitor) drawChart(monitor.history.slice(-30)); });
-setInterval(() => state.monitors.filter((monitor) => monitor.interval && (!monitor.lastCheck || Date.now() - monitor.lastCheck >= monitor.interval * 1000)).forEach(checkMonitor), 10_000);
-state.selectedId = state.monitors[0]?.id || null; render();
+setInterval(loadMonitors, 30_000);
+loadMonitors();

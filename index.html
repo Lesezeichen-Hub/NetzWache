@@ -22,7 +22,7 @@
         <label>Prüfintervall<select id="monitor-interval"><option value="0">Nur manuell</option><option value="60">1 Minute</option><option value="300" selected>5 Minuten</option><option value="900">15 Minuten</option></select></label>
         <button type="submit">Ziel hinzufügen</button>
       </form>
-      <p class="browser-note">Webseiten müssen CORS-Anfragen erlauben. Andernfalls zeigt der Browser die Prüfung als nicht erreichbar an.</p>
+      <p class="browser-note">Der Hub prüft Ziele im Hintergrund. Die Modulseite darf geschlossen werden; lokale und private Netzadressen bleiben aus Sicherheitsgründen ausgeschlossen.</p>
       <div id="monitor-list" class="monitor-list" aria-live="polite"></div>
     </aside>
 
