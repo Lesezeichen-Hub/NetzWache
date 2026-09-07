@@ -31,9 +31,11 @@ async function checkMonitor(monitor) {
   state.running.add(monitor.id); updateRunState();
   const started = performance.now(); let result;
   try {
-    const response = await fetch(monitor.url, { method: "GET", mode: "cors", cache: "no-store", redirect: "follow", signal: AbortSignal.timeout(20_000) });
-    result = { at: Date.now(), ok: response.ok, latency: Math.round(performance.now() - started), message: `HTTP ${response.status}` };
-  } catch (error) { result = { at: Date.now(), ok: false, latency: null, message: error.name === "TimeoutError" ? "Zeitüberschreitung" : "CORS / Netzwerkfehler" }; }
+    const response = await fetch(`/api/netzwache/check?${new URLSearchParams({ url: monitor.url })}`, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
+    if (!response.ok) throw new Error(`Hub-Fehler ${response.status}`);
+    const payload = await response.json();
+    result = { at: Date.now(), ok: Boolean(payload.ok), latency: Number(payload.latency) || null, message: payload.message || "Unbekannter Status" };
+  } catch (error) { result = { at: Date.now(), ok: false, latency: Math.round(performance.now() - started), message: error.name === "TimeoutError" ? "Zeitüberschreitung" : "Hub nicht erreichbar" }; }
   monitor.history = [...monitor.history, result].slice(-200); monitor.lastCheck = result.at; saveMonitors(); state.running.delete(monitor.id); render();
 }
 

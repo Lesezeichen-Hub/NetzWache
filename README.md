@@ -8,7 +8,7 @@ Repository: https://github.com/Lesezeichen-Hub/NetzWache
 
 `index.html` im Browser öffnen, Ziel anlegen und **Jetzt prüfen** wählen. Prüfungen und Historie bleiben in `localStorage` des verwendeten Browsers.
 
-Für fremde Webseiten ist eine erfolgreiche Browser-Prüfung nur möglich, wenn der Server CORS-Anfragen erlaubt. Eigene APIs oder Gesundheitsendpunkte können den Header `Access-Control-Allow-Origin` passend setzen. NetzWache kennzeichnet fehlende CORS-Freigaben als `CORS / Netzwerkfehler`.
+Als Hub-Modul ruft NetzWache den serverseitigen Prüfendpunkt `/api/netzwache/check` des Lesezeichen-Hubs auf. Damit funktionieren externe Webseiten auch ohne CORS-Freigabe. Aus Sicherheitsgründen prüft der Hub nur öffentliche HTTP(S)-Adressen; lokale, private und Link-Local-Netzadressen sind ausgeschlossen.
 
 ## Funktionen
 
